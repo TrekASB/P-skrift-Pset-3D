@@ -13,9 +13,9 @@ En lettvekts 3D-extension som viser egenskaper strukturert etter valgt Property 
 - CSV-eksport med semikolonseparator og UTF-8 BOM (Excel-vennlig i norsk oppsett).
 - 3D-stempel inspirert av vedlagt referansebilde: velg egenskapsrader, prefiks og suffiks, med live forhåndsvisning.
 - Oppretter et tekstmarkup for hvert valgt objekt via `viewer.getObjectBoundingBoxes()` og `markup.addTextMarkup()`.
-- Forankrer stempelet over objektets overside langs Trimble-viewerens Y-akse og plasserer teksten utenfor geometrien med en synlig lederlinje.
-- Beholder `modelId` og `objectId` i begge markup-punktene. For lange objekter legges stempelet ved punktet på bounding box-en som er nærmest kameraet, slik at teksten ikke havner utenfor utsnittet.
-- Automatisk eller manuelt valg av avstand fra objektet.
+- Bruker `viewer.onPicked` til å feste påskriften i det faktiske klikkpunktet på objektets overflate når Trimble leverer slike data.
+- Bruker overflatenormalen til å plassere tekstpunktet nøyaktig 1 mm utenfor geometrien. Midten av objektets øvre bounding-box-flate brukes som reserve.
+- Beholder `modelId` og `objectId` i begge markup-punktene.
 - Valgfri stempelfarge og tallavrunding.
 - Fjerner bare stemplene som extensionen selv har opprettet i gjeldende visningsøkt.
 - Kortoppsett lagres i `localStorage` per PSet.
@@ -53,16 +53,17 @@ Extensionen bruker ikke OAuth eller Property Set REST API. Den leser modellobjek
 1. Velg ett eller flere objekter i Trimble Connect 3D.
 2. Velg PSet og åpne fanen **3D-stempel**.
 3. Velg egenskapsrader og legg eventuelt inn prefiks og suffiks.
-4. Velg farge, eventuell tallavrunding og avstand fra objektet.
-5. Klikk **Plasser 3D-stempel på valgte objekter**.
+4. Klikk på ønsket plassering på objektet, og velg deretter farge og eventuell tallavrunding.
+5. Klikk **Plasser påskrift 1 mm over objektet**.
 
-Stempelteksten bygges separat for hvert objekt, slik at hvert objekt får sine egne egenskapsverdier. Forankringspunktet beregnes fra toppen av objektets bounding box på Y-aksen, mens tekstpunktet forskyves videre oppover. Begge punktene inneholder objektets `modelId` og `objectId`. Dette hindrer at teksten havner inne i objektet eller at markuplinjen får null lengde. For lange objekter brukes kameraets posisjon til å velge et synlig punkt på bounding box-en. Workspace API bruker millimeter for markup-punkter, derfor konverteres modellkoordinatene med faktor 1000.
+Stempelteksten bygges separat for hvert objekt, slik at hvert objekt får sine egne egenskapsverdier. Når brukeren klikker på objektet, lagres posisjon og overflatenormal fra `viewer.onPicked`. Startpunktet legges på overflaten og tekstpunktet 1 mm langs normalen. Begge punktene inneholder objektets `modelId` og `objectId`. Dersom klikkdata mangler, brukes midten av den øvre bounding-box-flaten med 1 mm avstand. Workspace API bruker millimeter for markup-punkter, derfor konverteres modellkoordinatene med faktor 1000.
 
 ## Begrensninger
 
 - Maks 250 valgte objekter lastes samtidig i denne versjonen for å unngå treghet ved store utvalg. Verdien kan endres i `app.js`.
 - Visningen avhenger av hvilke egenskaper Trimble Connect har tilgjengelig på objektet i den lastede modellen.
 - Workspace API-et tilbyr farge, tekst og start-/sluttpunkt for `TextMarkup`, men ikke egne parametere for skrifthøyde eller rammetype. Disse to valgene fra referansebildet er derfor ikke simulert i brukergrensesnittet.
+- `TextMarkup` er alltid en lesbar, kameravendt annotasjon i Trimble Connect. API-et tilbyr ikke rotasjon av selve teksten som en fysisk tekstgeometri langs objektets materiale; «drapering» betyr derfor at festepunktet ligger på flaten og teksten 1 mm utenfor den.
 - Markups lever i den aktive 3D-visningen. Om de følger med videre, avhenger av hvordan visningen lagres og deles i Trimble Connect.
 - Knappen **Fjern opprettede stempler** fjerner bare markup-ID-ene som denne extensionen har opprettet i gjeldende økt. Den sletter ikke andres markups.
 

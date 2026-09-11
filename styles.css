@@ -123,6 +123,8 @@ select:focus, input:focus { outline: 2px solid rgba(0,99,166,.18); border-color:
 .preview-placeholder { color: var(--muted); font-size: 12px; font-weight: 400; }
 .stamp-settings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 13px; }
 .stamp-settings > label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.surface-setting { display: grid; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.surface-setting strong { min-height: 39px; display: flex; align-items: center; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surface-soft); color: var(--text); }
 .color-control { min-height: 38px; display: flex; align-items: center; gap: 9px; border: 1px solid var(--line-strong); border-radius: 7px; background: #fff; padding: 5px 8px; }
 .color-control input[type="color"] { width: 42px; height: 28px; padding: 0; border: 0; background: transparent; cursor: pointer; }
 .color-control output { color: var(--text); font: 600 12px/1 Consolas, monospace; }

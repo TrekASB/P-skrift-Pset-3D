@@ -17,15 +17,16 @@
       <li>Velg ønsket <strong>Property Set (PSet)</strong> i listen.</li>
       <li>Bruk fanen <strong>Egenskaper</strong> for tabellvisning, søk og eksport.</li>
       <li>Bruk <strong>3D-stempel</strong> for å velge egne egenskapsrader, prefiks og suffiks. Oppsettet lagres lokalt i nettleseren per PSet.</li>
-      <li>Velg farge, eventuell tallavrunding og avstand fra objektet. Klikk deretter <strong>Plasser 3D-stempel på valgte objekter</strong>.</li>
+      <li>Klikk på stedet på objektet der påskriften skal ligge. Velg farge og eventuell tallavrunding, og klikk deretter <strong>Plasser påskrift 1 mm over objektet</strong>.</li>
     </ol>
     <h2>Flervalg</h2>
     <p>Ved valg av flere objekter vises felles verdi når alle har samme verdi. Dersom verdiene er ulike vises <strong>Varierer</strong>, og dekning viser hvor mange objekter som har en verdi.</p>
     <h2>3D-stempler</h2>
-    <p>Hvert valgt objekt får sin egen tekst basert på objektets egenskapsverdier. Stempelet forankres over objektets overside langs Y-aksen, og teksten plasseres videre oppover med en lederlinje. For lange objekter velges punktet på bounding box-en som er nærmest kameraet, slik at teksten normalt blir liggende i det synlige utsnittet. Dersom teksten fortsatt ligger for nær et stort objekt, velg større avstand. <strong>Fjern opprettede stempler</strong> fjerner bare stempler som extensionen har opprettet i samme visningsøkt.</p>
+    <p>Hvert valgt objekt får sin egen tekst basert på objektets egenskapsverdier. Når du klikker på objektet, festes påskriften i klikkpunktet og legges 1 mm ut fra flaten langs overflatenormalen. Hvis Trimble ikke leverer klikkpunktet, brukes midten av objektets overside. <strong>Fjern opprettede stempler</strong> fjerner bare stempler som extensionen har opprettet i samme visningsøkt.</p>
+    <p>Trimble viser tekstmarkups kameravendt for lesbarhet. Workspace API-et kan feste teksten til flaten, men tilbyr ikke rotasjon av selve teksten som fysisk geometri langs materialet.</p>
     <p>Trimble Workspace API tilbyr ikke egne innstillinger for skrifthøyde eller rammetype på tekstmarkups. Derfor er disse valgene fra referansebildet ikke med i denne versjonen.</p>
     <h2>Teknisk</h2>
-    <p>Løsningen bruker Trimble Connect Workspace API, blant annet <code>viewer.getSelection()</code>, <code>viewer.getObjectProperties()</code>, <code>viewer.getObjectBoundingBoxes()</code> og <code>markup.addTextMarkup()</code>. Ingen prosjektdata sendes til en ekstern server av denne extensionen.</p>
+    <p>Løsningen bruker Trimble Connect Workspace API, blant annet <code>viewer.onPicked</code>, <code>viewer.getSelection()</code>, <code>viewer.getObjectProperties()</code>, <code>viewer.getObjectBoundingBoxes()</code> og <code>markup.addTextMarkup()</code>. Ingen prosjektdata sendes til en ekstern server av denne extensionen.</p>
   </article>
 </body>
 </html>

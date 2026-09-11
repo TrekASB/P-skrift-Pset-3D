@@ -42,6 +42,9 @@ Denne extensionen er implementert selvstendig, men følgende åpne eksempler og 
 - **Workspace API – TextMarkup**  
   https://components.connect.trimble.com/trimble-connect-workspace-api/interfaces/TextMarkup.html
 
+- **Workspace API – PointPickedDetail**
+  https://components.connect.trimble.com/trimble-connect-workspace-api/interfaces/PointPickedDetail.html
+
 - **Trimble Connect – Property Set API**  
   https://developer.trimble.com/docs/connect/tools/api/property-set/
 

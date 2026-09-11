@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light" />
   <title>PSet-visning | Trimble Connect</title>
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="./styles.css?v=1.2" />
+  <link rel="stylesheet" href="./styles.css?v=1.3" />
 </head>
 <body>
   <div class="app-shell">
@@ -15,7 +15,7 @@
       <div class="brand-copy">
         <div class="title-row">
           <h1>PSet-visning</h1>
-          <span class="version">v1.2</span>
+          <span class="version">v1.3</span>
         </div>
         <p>Strukturert egenskapsvisning for Trimble Connect 3D</p>
       </div>
@@ -118,23 +118,16 @@
                 <option value="3">3 desimaler</option>
               </select>
             </label>
-            <label>
-              <span>Avstand fra objekt</span>
-              <select id="stampOffset">
-                <option value="auto">Automatisk</option>
-                <option value="0.5">0,5 meter</option>
-                <option value="1">1 meter</option>
-                <option value="2">2 meter</option>
-                <option value="5">5 meter</option>
-                <option value="10">10 meter</option>
-              </select>
-            </label>
+            <div class="surface-setting">
+              <span>Plassering</span>
+              <strong>1 mm over valgt overflate</strong>
+            </div>
           </div>
 
-          <p class="stamp-help">Stempelet forankres på objektet og teksten plasseres utenfor geometrien med en synlig lederlinje. Velg større avstand dersom objektet er stort.</p>
+          <p class="stamp-help">Klikk først på stedet på objektet der påskriften skal ligge. Påskriften festes i klikkpunktet og legges 1 mm ut fra overflaten. Hvis klikkpunkt mangler, brukes midten av objektets overside.</p>
 
           <div class="button-row">
-            <button id="createStampsButton" class="primary-button wide-button" type="button" disabled>Plasser 3D-stempel på valgte objekter</button>
+            <button id="createStampsButton" class="primary-button wide-button" type="button" disabled>Plasser påskrift 1 mm over objektet</button>
             <button id="removeStampsButton" class="secondary-button" type="button" disabled>Fjern opprettede stempler</button>
             <button id="copyCardButton" class="secondary-button" type="button" disabled>Kopier tekst</button>
             <button id="resetCardButton" class="secondary-button" type="button" disabled>Nullstill oppsett</button>
@@ -153,6 +146,6 @@
   </div>
 
   <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
-  <script src="./app.js?v=1.2"></script>
+  <script src="./app.js?v=1.3"></script>
 </body>
 </html>

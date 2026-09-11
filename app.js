@@ -17,6 +17,7 @@
     isRefreshing: false,
     isCreatingStamps: false,
     createdMarkupIds: [],
+    surfacePicks: new Map(),
   };
 
   const el = {};
@@ -55,7 +56,7 @@
       'psetSelect','psetCoverage','propertySearch','onlyWithValue','propertySummary',
       'propertyTableBody','copyPsetButton','csvButton','rowConfig','cardPreview',
       'addRowButton','copyCardButton','resetCardButton','messageBox','tableView','cardView',
-      'stampColor','stampColorValue','numberRounding','stampOffset','createStampsButton','removeStampsButton','stampStatus'
+      'stampColor','stampColorValue','numberRounding','createStampsButton','removeStampsButton','stampStatus'
     ].forEach(id => { el[id] = document.getElementById(id); });
     el.tabs = Array.from(document.querySelectorAll('.tab'));
   }
@@ -85,14 +86,51 @@
       saveStampSettings();
       renderCardPreview();
     });
-    el.stampOffset.addEventListener('change', saveStampSettings);
     el.tabs.forEach(tab => tab.addEventListener('click', () => setTab(tab.dataset.tab)));
   }
 
   function handleWorkspaceEvent(event, data) {
+    if (event === 'viewer.onPicked') captureSurfacePick(data);
     if (event === 'viewer.onSelectionChanged' || event === 'viewer.onModelStateChanged') {
       scheduleRefresh();
     }
+  }
+
+  function captureSurfacePick(payload) {
+    const wrapped = payload?.data ?? payload;
+    const detail = Array.isArray(wrapped) ? wrapped[0] : wrapped;
+    if (!detail) return;
+
+    const modelId = detail.modelId || detail.modelID || payload?.modelId || payload?.modelID;
+    const runtimeId = detail.objectRuntimeId ?? detail.runtimeId ?? detail.objectId ?? payload?.objectRuntimeId ?? payload?.runtimeId ?? payload?.objectId;
+    const positionSource = detail.position || detail.pickPoint || detail.point || detail.worldPosition || detail;
+    const normalSource = detail.normal || detail.surfaceNormal || detail.direction;
+    const position = readVector(positionSource, 'position');
+    const normal = normalizeVector(readVector(normalSource, 'direction'));
+
+    if (!modelId || !Number.isFinite(Number(runtimeId)) || !position) return;
+    state.surfacePicks.set(`${modelId}:${Number(runtimeId)}`, {
+      position,
+      normal: normal || { x: 0, y: 1, z: 0 },
+    });
+    if (el.stampStatus) el.stampStatus.textContent = 'Overflatepunkt registrert. Påskriften plasseres 1 mm over dette punktet.';
+  }
+
+  function readVector(source, prefix) {
+    if (!source) return null;
+    const vector = {
+      x: Number(source.x ?? source[`${prefix}X`]),
+      y: Number(source.y ?? source[`${prefix}Y`]),
+      z: Number(source.z ?? source[`${prefix}Z`]),
+    };
+    return Object.values(vector).every(Number.isFinite) ? vector : null;
+  }
+
+  function normalizeVector(vector) {
+    if (!vector) return null;
+    const length = Math.hypot(vector.x, vector.y, vector.z);
+    if (!Number.isFinite(length) || length < 1e-9) return null;
+    return { x: vector.x / length, y: vector.y / length, z: vector.z / length };
   }
 
   function scheduleRefresh() {
@@ -562,9 +600,6 @@
       if (['none', '0', '1', '2', '3'].includes(String(settings.rounding))) {
         el.numberRounding.value = String(settings.rounding);
       }
-      if (['auto', '0.5', '1', '2', '5', '10'].includes(String(settings.offset))) {
-        el.stampOffset.value = String(settings.offset);
-      }
     } catch {
       // Bruk standardinnstillinger dersom lagret verdi ikke kan leses.
     }
@@ -575,7 +610,6 @@
     localStorage.setItem(STORAGE_PREFIX + 'stampSettings', JSON.stringify({
       color: el.stampColor.value,
       rounding: el.numberRounding.value,
-      offset: el.stampOffset.value,
     }));
   }
 
@@ -589,28 +623,39 @@
     };
   }
 
-  function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
+  function distanceToBox(point, min, max) {
+    const dx = Math.max(min.x - point.x, 0, point.x - max.x);
+    const dy = Math.max(min.y - point.y, 0, point.y - max.y);
+    const dz = Math.max(min.z - point.z, 0, point.z - max.z);
+    return Math.hypot(dx, dy, dz);
   }
 
-  async function getCameraPosition() {
-    try {
-      if (!state.api?.viewer?.getCamera) return null;
-      const camera = await state.api.viewer.getCamera();
-      const position = camera?.position || camera?.eye || camera?.cameraPosition;
-      if (!position) return null;
-      const point = {
-        x: Number(position.x),
-        y: Number(position.y),
-        z: Number(position.z),
-      };
-      return Object.values(point).every(Number.isFinite) ? point : null;
-    } catch {
-      return null;
-    }
+  function positionInModelUnits(position, min, max) {
+    const asMeters = position;
+    const asMillimeters = { x: position.x / 1000, y: position.y / 1000, z: position.z / 1000 };
+    return distanceToBox(asMillimeters, min, max) < distanceToBox(asMeters, min, max)
+      ? asMillimeters
+      : asMeters;
   }
 
-  function getMarkupPoints(box, modelId, runtimeId, cameraPosition) {
+  function outwardNormal(point, normal, min, max) {
+    const step = 0.001;
+    const plus = {
+      x: point.x + normal.x * step,
+      y: point.y + normal.y * step,
+      z: point.z + normal.z * step,
+    };
+    const minus = {
+      x: point.x - normal.x * step,
+      y: point.y - normal.y * step,
+      z: point.z - normal.z * step,
+    };
+    return distanceToBox(minus, min, max) > distanceToBox(plus, min, max)
+      ? { x: -normal.x, y: -normal.y, z: -normal.z }
+      : normal;
+  }
+
+  function getMarkupPoints(box, modelId, runtimeId) {
     const min = {
       x: Number(box.min.x),
       y: Number(box.min.y),
@@ -628,27 +673,21 @@
       y: (min.y + max.y) / 2,
       z: (min.z + max.z) / 2,
     };
-    const extentX = Math.abs(max.x - min.x);
-    const extentZ = Math.abs(max.z - min.z);
-    const planLong = Math.max(extentX, extentZ);
-    const planShort = Math.max(1e-6, Math.min(extentX, extentZ));
-    const isLinear = planLong / planShort >= 6;
 
-    // For lange objekter velges punktet på bbox-en som ligger nærmest kameraet.
-    // Det hindrer at et stempel på for eksempel et langt rør havner langt utenfor utsnittet.
-    let anchorX = center.x;
-    let anchorZ = center.z;
-    if (isLinear && cameraPosition) {
-      anchorX = clamp(cameraPosition.x, min.x, max.x);
-      anchorZ = clamp(cameraPosition.z, min.z, max.z);
-    }
-
-    // Samme koordinatmodell som den fungerende TrekASB/TCGGxt_2-løsningen:
-    // Y er høydeaksen, markup-punktene er millimeter, og begge punktene knyttes til objektet.
-    const automaticDistance = isLinear ? 0.42 : 0.72;
-    const selectedDistance = el.stampOffset.value === 'auto' ? automaticDistance : Number(el.stampOffset.value);
-    const distance = Number.isFinite(selectedDistance) && selectedDistance > 0 ? selectedDistance : automaticDistance;
-    const anchorLift = Math.min(0.2, Math.max(0.01, distance - 0.05));
+    const savedPick = state.surfacePicks.get(`${modelId}:${Number(runtimeId)}`);
+    const pickedPoint = savedPick ? positionInModelUnits(savedPick.position, min, max) : null;
+    const surfacePoint = pickedPoint || { x: center.x, y: max.y, z: center.z };
+    const normal = outwardNormal(
+      surfacePoint,
+      savedPick?.normal || { x: 0, y: 1, z: 0 },
+      min,
+      max
+    );
+    const labelPoint = {
+      x: surfacePoint.x + normal.x * 0.001,
+      y: surfacePoint.y + normal.y * 0.001,
+      z: surfacePoint.z + normal.z * 0.001,
+    };
 
     const toMarkupPick = point => ({
       positionX: point.x * 1000,
@@ -656,12 +695,16 @@
       positionZ: point.z * 1000,
       modelId,
       objectId: Number(runtimeId),
+      type: 'plane',
+      directionX: normal.x,
+      directionY: normal.y,
+      directionZ: normal.z,
     });
 
     return {
-      start: toMarkupPick({ x: anchorX, y: max.y + anchorLift, z: anchorZ }),
-      end: toMarkupPick({ x: anchorX, y: max.y + distance, z: anchorZ }),
-      offset: distance,
+      start: toMarkupPick(surfacePoint),
+      end: toMarkupPick(labelPoint),
+      source: savedPick ? 'picked' : 'boundingBox',
     };
   }
 
@@ -680,10 +723,9 @@
     const newIds = [];
     let createdCount = 0;
     let failedCount = 0;
-    let lastOffset = 0;
+    let pickedPlacementCount = 0;
 
     try {
-      const cameraPosition = await getCameraPosition();
       for (const [modelId, objects] of groups) {
         for (let i = 0; i < objects.length; i += MARKUP_BATCH_SIZE) {
           const batch = objects.slice(i, i + MARKUP_BATCH_SIZE);
@@ -696,9 +738,9 @@
               const box = entry?.boundingBox;
               const object = objectById.get(Number(entry?.id));
               if (!box?.min || !box?.max || !object) continue;
-              const points = getMarkupPoints(box, modelId, object.runtimeId, cameraPosition);
+              const points = getMarkupPoints(box, modelId, object.runtimeId);
               if (!points) continue;
-              lastOffset = points.offset;
+              if (points.source === 'picked') pickedPlacementCount += 1;
               markups.push({
                 text: buildCardText(object),
                 start: points.start,
@@ -725,8 +767,10 @@
       state.createdMarkupIds = Array.from(new Set([...state.createdMarkupIds, ...newIds]));
       if (!createdCount) throw new Error('Ingen stempler ble opprettet');
       const failedText = failedCount ? ` ${failedCount} objekt${failedCount === 1 ? '' : 'er'} kunne ikke stemples.` : '';
-      const offsetText = state.objects.length === 1 && lastOffset ? ` Teksten er plassert ${formatMeters(lastOffset)} utenfor objektet.` : '';
-      el.stampStatus.textContent = `${createdCount} 3D-stempel${createdCount === 1 ? '' : 'er'} er opprettet.${offsetText}${failedText}`;
+      const placementText = pickedPlacementCount === createdCount
+        ? ' Påskriften er plassert 1 mm over klikkpunktet på objektets overflate.'
+        : ' Påskriften er plassert 1 mm over midten av objektets øvre avgrensningsflate. Klikk på ønsket sted på objektet før oppretting for helt presis plassering.';
+      el.stampStatus.textContent = `${createdCount} 3D-stempel${createdCount === 1 ? '' : 'er'} er opprettet.${placementText}${failedText}`;
       showMessage(`${createdCount} 3D-stempel${createdCount === 1 ? '' : 'er'} opprettet.`, failedCount ? 'info' : 'success');
     } catch (error) {
       console.error(error);
@@ -736,10 +780,6 @@
       state.isCreatingStamps = false;
       updateButtons();
     }
-  }
-
-  function formatMeters(value) {
-    return `${new Intl.NumberFormat('nb-NO', { maximumFractionDigits: 2 }).format(value)} m`;
   }
 
   async function removeCreatedStamps() {
