@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hjelp – PSet-visning</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <style>body{padding:20px}.help{max-width:780px;margin:auto;background:#fff;border:1px solid #d7dde3;border-radius:10px;padding:22px}.help h1{font-size:24px}.help h2{margin-top:24px}.help li{margin:7px 0;line-height:1.5}.help code{background:#f3f5f7;padding:2px 5px;border-radius:4px}</style>
+</head>
+<body>
+  <article class="help">
+    <h1>PSet-visning og 3D-stempler</h1>
+    <p>Extensionen viser egenskaper fra Property Sets og kan opprette egenskapsbaserte tekststempler på valgte objekter i Trimble Connect 3D.</p>
+    <h2>Bruk</h2>
+    <ol>
+      <li>Velg ett eller flere objekter i 3D-visningen.</li>
+      <li>Velg ønsket <strong>Property Set (PSet)</strong> i listen.</li>
+      <li>Bruk fanen <strong>Egenskaper</strong> for tabellvisning, søk og eksport.</li>
+      <li>Bruk <strong>3D-stempel</strong> for å velge egne egenskapsrader, prefiks og suffiks. Oppsettet lagres lokalt i nettleseren per PSet.</li>
+      <li>Velg farge og eventuell tallavrunding, og klikk <strong>Plasser 3D-stempel på valgte objekter</strong>.</li>
+    </ol>
+    <h2>Flervalg</h2>
+    <p>Ved valg av flere objekter vises felles verdi når alle har samme verdi. Dersom verdiene er ulike vises <strong>Varierer</strong>, og dekning viser hvor mange objekter som har en verdi.</p>
+    <h2>3D-stempler</h2>
+    <p>Hvert valgt objekt får sin egen tekst basert på objektets egenskapsverdier. Stempelpunktet plasseres ved sentrum av objektet. <strong>Fjern opprettede stempler</strong> fjerner bare stempler som extensionen har opprettet i samme visningsøkt.</p>
+    <p>Trimble Workspace API tilbyr ikke egne innstillinger for skrifthøyde eller rammetype på tekstmarkups. Derfor er disse valgene fra referansebildet ikke med i denne versjonen.</p>
+    <h2>Teknisk</h2>
+    <p>Løsningen bruker Trimble Connect Workspace API, blant annet <code>viewer.getSelection()</code>, <code>viewer.getObjectProperties()</code>, <code>viewer.getObjectBoundingBoxes()</code> og <code>markup.addTextMarkup()</code>. Ingen prosjektdata sendes til en ekstern server av denne extensionen.</p>
+  </article>
+</body>
+</html>

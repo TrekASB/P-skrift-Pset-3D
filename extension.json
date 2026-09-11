@@ -1,0 +1,8 @@
+{
+  "url": "https://trekasb.github.io/P-skrift-Pset-3D/",
+  "title": "PSet-visning",
+  "icon": "https://trekasb.github.io/P-skrift-Pset-3D/icon.png",
+  "infoUrl": "https://trekasb.github.io/P-skrift-Pset-3D/help.html",
+  "description": "Viser IFC- og modell-egenskaper etter valgt PSet og oppretter egenskapsbaserte 3D-stempler på valgte objekter.",
+  "extensionType": ["3dviewer"]
+}

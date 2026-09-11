@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>PSet-visning | Trimble Connect</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand-mark" aria-hidden="true">P</div>
+      <div class="brand-copy">
+        <div class="title-row">
+          <h1>PSet-visning</h1>
+          <span class="version">v1.1</span>
+        </div>
+        <p>Strukturert egenskapsvisning for Trimble Connect 3D</p>
+      </div>
+      <span id="connectionBadge" class="badge badge-waiting">Kobler til …</span>
+    </header>
+
+    <main>
+      <section class="panel object-panel">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">VALGT OBJEKT</span>
+            <h2 id="objectTitle">Velg et objekt i 3D-visningen</h2>
+          </div>
+          <button id="refreshButton" class="icon-button" type="button" title="Oppdater fra gjeldende utvalg" aria-label="Oppdater">↻</button>
+        </div>
+        <div id="objectMeta" class="meta-grid hidden"></div>
+        <p id="selectionHint" class="hint">Egenskapene oppdateres automatisk når du endrer utvalget i Trimble Connect.</p>
+      </section>
+
+      <section class="panel">
+        <div class="field-group">
+          <label for="psetSelect">Property Set (PSet)</label>
+          <select id="psetSelect" disabled>
+            <option value="">Velg først et objekt</option>
+          </select>
+          <div id="psetCoverage" class="field-help"></div>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="Visningsmodus">
+          <button class="tab active" id="tableTab" data-tab="table" type="button" role="tab" aria-selected="true">Egenskaper</button>
+          <button class="tab" id="cardTab" data-tab="card" type="button" role="tab" aria-selected="false">3D-stempel</button>
+        </div>
+
+        <div id="tableView" class="tab-view active" role="tabpanel" aria-labelledby="tableTab">
+          <div class="toolbar">
+            <div class="search-wrap">
+              <span aria-hidden="true">⌕</span>
+              <input id="propertySearch" type="search" placeholder="Søk i egenskaper og verdier" autocomplete="off" />
+            </div>
+            <label class="check-control">
+              <input id="onlyWithValue" type="checkbox" />
+              <span>Kun med verdi</span>
+            </label>
+          </div>
+
+          <div id="propertySummary" class="summary-strip hidden"></div>
+
+          <div class="table-wrap">
+            <table class="property-table">
+              <thead>
+                <tr>
+                  <th>Egenskap</th>
+                  <th>Verdi</th>
+                  <th class="coverage-col">Dekning</th>
+                </tr>
+              </thead>
+              <tbody id="propertyTableBody">
+                <tr class="empty-row"><td colspan="3">Ingen egenskaper å vise.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="button-row">
+            <button id="copyPsetButton" class="secondary-button" type="button" disabled>Kopier PSet</button>
+            <button id="csvButton" class="secondary-button" type="button" disabled>Eksporter CSV</button>
+          </div>
+        </div>
+
+        <div id="cardView" class="tab-view" role="tabpanel" aria-labelledby="cardTab">
+          <div class="card-intro">
+            <div>
+              <h3>Konfigurer 3D-stempel</h3>
+              <p>Velg egenskaper fra aktivt PSet, og bygg opp én eller flere tekstlinjer.</p>
+            </div>
+            <button id="addRowButton" class="secondary-button" type="button" disabled>+ Legg til rad</button>
+          </div>
+
+          <div id="rowConfig" class="row-config"></div>
+
+          <div class="preview-label">FORHÅNDSVISNING (FØRSTE VALGTE OBJEKT)</div>
+          <div id="cardPreview" class="preview-card">
+            <div class="preview-placeholder">Velg et PSet og legg til minst én rad.</div>
+          </div>
+
+          <div class="stamp-settings">
+            <label>
+              <span>Stempelfarge</span>
+              <span class="color-control">
+                <input id="stampColor" type="color" value="#f28c00" />
+                <output id="stampColorValue" for="stampColor">#F28C00</output>
+              </span>
+            </label>
+            <label>
+              <span>Tallavrunding</span>
+              <select id="numberRounding">
+                <option value="none">Behold original verdi</option>
+                <option value="0">Heltall</option>
+                <option value="1">1 desimal</option>
+                <option value="2">2 desimaler</option>
+                <option value="3">3 desimaler</option>
+              </select>
+            </label>
+          </div>
+
+          <p class="stamp-help">Stemplene plasseres ved sentrum av hvert valgt objekt. De kan fjernes igjen i samme visningsøkt.</p>
+
+          <div class="button-row">
+            <button id="createStampsButton" class="primary-button wide-button" type="button" disabled>Plasser 3D-stempel på valgte objekter</button>
+            <button id="removeStampsButton" class="secondary-button" type="button" disabled>Fjern opprettede stempler</button>
+            <button id="copyCardButton" class="secondary-button" type="button" disabled>Kopier tekst</button>
+            <button id="resetCardButton" class="secondary-button" type="button" disabled>Nullstill oppsett</button>
+          </div>
+          <div id="stampStatus" class="field-help" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section id="messageBox" class="message-box hidden" role="status" aria-live="polite"></section>
+    </main>
+
+    <footer>
+      <span>PSet-visning for Trimble Connect</span>
+      <a href="./help.html" target="_blank" rel="noopener">Hjelp</a>
+    </footer>
+  </div>
+
+  <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
