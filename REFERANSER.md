@@ -22,6 +22,12 @@ Denne extensionen er implementert selvstendig, men følgende åpne eksempler og 
 
    Kildekoden bruker imidlertid `MarkupAPI.getInstance()` og `addOrUpdateTextMarkups()`, mens den offisielle Workspace API-versjonen som ble kontrollert eksponerer markup-funksjonene som `api.markup.addTextMarkup()`. Denne leveransen bruker derfor det offisielle API-kallet og ikke de eksperimentelle kallene fra repositoryet.
 
+5. **TrekASB / TCGGxt_2**
+
+   https://github.com/TrekASB/TCGGxt_2
+
+   Tidligere, fungerende løsning utviklet for objektpåskrift i Trimble Connect. Bbox-reserveløsningen bekrefter at Y er høydeaksen, at modellkoordinater skal konverteres til millimeter, og at `modelId` og `objectId` bør følge både start- og sluttpunktet. Løsningen bruker også et kameranært punkt på bounding box-en for lange objekter. Disse mønstrene er gjenbrukt i feilrettingen for synlige 3D-stempler.
+
 ## Offisiell Trimble-dokumentasjon
 
 - **Trimble Connect – Extend Trimble Connect**  

@@ -55,7 +55,7 @@
       'psetSelect','psetCoverage','propertySearch','onlyWithValue','propertySummary',
       'propertyTableBody','copyPsetButton','csvButton','rowConfig','cardPreview',
       'addRowButton','copyCardButton','resetCardButton','messageBox','tableView','cardView',
-      'stampColor','stampColorValue','numberRounding','createStampsButton','removeStampsButton','stampStatus'
+      'stampColor','stampColorValue','numberRounding','stampOffset','createStampsButton','removeStampsButton','stampStatus'
     ].forEach(id => { el[id] = document.getElementById(id); });
     el.tabs = Array.from(document.querySelectorAll('.tab'));
   }
@@ -85,6 +85,7 @@
       saveStampSettings();
       renderCardPreview();
     });
+    el.stampOffset.addEventListener('change', saveStampSettings);
     el.tabs.forEach(tab => tab.addEventListener('click', () => setTab(tab.dataset.tab)));
   }
 
@@ -561,6 +562,9 @@
       if (['none', '0', '1', '2', '3'].includes(String(settings.rounding))) {
         el.numberRounding.value = String(settings.rounding);
       }
+      if (['auto', '0.5', '1', '2', '5', '10'].includes(String(settings.offset))) {
+        el.stampOffset.value = String(settings.offset);
+      }
     } catch {
       // Bruk standardinnstillinger dersom lagret verdi ikke kan leses.
     }
@@ -571,6 +575,7 @@
     localStorage.setItem(STORAGE_PREFIX + 'stampSettings', JSON.stringify({
       color: el.stampColor.value,
       rounding: el.numberRounding.value,
+      offset: el.stampOffset.value,
     }));
   }
 
@@ -581,6 +586,82 @@
       g: parseInt(normalized.slice(2, 4), 16),
       b: parseInt(normalized.slice(4, 6), 16),
       a: 255,
+    };
+  }
+
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  async function getCameraPosition() {
+    try {
+      if (!state.api?.viewer?.getCamera) return null;
+      const camera = await state.api.viewer.getCamera();
+      const position = camera?.position || camera?.eye || camera?.cameraPosition;
+      if (!position) return null;
+      const point = {
+        x: Number(position.x),
+        y: Number(position.y),
+        z: Number(position.z),
+      };
+      return Object.values(point).every(Number.isFinite) ? point : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function getMarkupPoints(box, modelId, runtimeId, cameraPosition) {
+    const min = {
+      x: Number(box.min.x),
+      y: Number(box.min.y),
+      z: Number(box.min.z),
+    };
+    const max = {
+      x: Number(box.max.x),
+      y: Number(box.max.y),
+      z: Number(box.max.z),
+    };
+    if (![min.x, min.y, min.z, max.x, max.y, max.z].every(Number.isFinite)) return null;
+
+    const center = {
+      x: (min.x + max.x) / 2,
+      y: (min.y + max.y) / 2,
+      z: (min.z + max.z) / 2,
+    };
+    const extentX = Math.abs(max.x - min.x);
+    const extentZ = Math.abs(max.z - min.z);
+    const planLong = Math.max(extentX, extentZ);
+    const planShort = Math.max(1e-6, Math.min(extentX, extentZ));
+    const isLinear = planLong / planShort >= 6;
+
+    // For lange objekter velges punktet på bbox-en som ligger nærmest kameraet.
+    // Det hindrer at et stempel på for eksempel et langt rør havner langt utenfor utsnittet.
+    let anchorX = center.x;
+    let anchorZ = center.z;
+    if (isLinear && cameraPosition) {
+      anchorX = clamp(cameraPosition.x, min.x, max.x);
+      anchorZ = clamp(cameraPosition.z, min.z, max.z);
+    }
+
+    // Samme koordinatmodell som den fungerende TrekASB/TCGGxt_2-løsningen:
+    // Y er høydeaksen, markup-punktene er millimeter, og begge punktene knyttes til objektet.
+    const automaticDistance = isLinear ? 0.42 : 0.72;
+    const selectedDistance = el.stampOffset.value === 'auto' ? automaticDistance : Number(el.stampOffset.value);
+    const distance = Number.isFinite(selectedDistance) && selectedDistance > 0 ? selectedDistance : automaticDistance;
+    const anchorLift = Math.min(0.2, Math.max(0.01, distance - 0.05));
+
+    const toMarkupPick = point => ({
+      positionX: point.x * 1000,
+      positionY: point.y * 1000,
+      positionZ: point.z * 1000,
+      modelId,
+      objectId: Number(runtimeId),
+    });
+
+    return {
+      start: toMarkupPick({ x: anchorX, y: max.y + anchorLift, z: anchorZ }),
+      end: toMarkupPick({ x: anchorX, y: max.y + distance, z: anchorZ }),
+      offset: distance,
     };
   }
 
@@ -599,8 +680,10 @@
     const newIds = [];
     let createdCount = 0;
     let failedCount = 0;
+    let lastOffset = 0;
 
     try {
+      const cameraPosition = await getCameraPosition();
       for (const [modelId, objects] of groups) {
         for (let i = 0; i < objects.length; i += MARKUP_BATCH_SIZE) {
           const batch = objects.slice(i, i + MARKUP_BATCH_SIZE);
@@ -613,18 +696,13 @@
               const box = entry?.boundingBox;
               const object = objectById.get(Number(entry?.id));
               if (!box?.min || !box?.max || !object) continue;
-              const point = {
-                positionX: ((Number(box.min.x) + Number(box.max.x)) / 2) * 1000,
-                positionY: ((Number(box.min.y) + Number(box.max.y)) / 2) * 1000,
-                positionZ: ((Number(box.min.z) + Number(box.max.z)) / 2) * 1000,
-                modelId,
-                objectId: object.runtimeId,
-                type: 'point',
-              };
+              const points = getMarkupPoints(box, modelId, object.runtimeId, cameraPosition);
+              if (!points) continue;
+              lastOffset = points.offset;
               markups.push({
                 text: buildCardText(object),
-                start: point,
-                end: { ...point },
+                start: points.start,
+                end: points.end,
                 color: hexToRgba(el.stampColor.value),
               });
             }
@@ -647,7 +725,8 @@
       state.createdMarkupIds = Array.from(new Set([...state.createdMarkupIds, ...newIds]));
       if (!createdCount) throw new Error('Ingen stempler ble opprettet');
       const failedText = failedCount ? ` ${failedCount} objekt${failedCount === 1 ? '' : 'er'} kunne ikke stemples.` : '';
-      el.stampStatus.textContent = `${createdCount} 3D-stempel${createdCount === 1 ? '' : 'er'} er opprettet.${failedText}`;
+      const offsetText = state.objects.length === 1 && lastOffset ? ` Teksten er plassert ${formatMeters(lastOffset)} utenfor objektet.` : '';
+      el.stampStatus.textContent = `${createdCount} 3D-stempel${createdCount === 1 ? '' : 'er'} er opprettet.${offsetText}${failedText}`;
       showMessage(`${createdCount} 3D-stempel${createdCount === 1 ? '' : 'er'} opprettet.`, failedCount ? 'info' : 'success');
     } catch (error) {
       console.error(error);
@@ -657,6 +736,10 @@
       state.isCreatingStamps = false;
       updateButtons();
     }
+  }
+
+  function formatMeters(value) {
+    return `${new Intl.NumberFormat('nb-NO', { maximumFractionDigits: 2 }).format(value)} m`;
   }
 
   async function removeCreatedStamps() {

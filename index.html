@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light" />
   <title>PSet-visning | Trimble Connect</title>
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=1.2" />
 </head>
 <body>
   <div class="app-shell">
@@ -15,7 +15,7 @@
       <div class="brand-copy">
         <div class="title-row">
           <h1>PSet-visning</h1>
-          <span class="version">v1.1</span>
+          <span class="version">v1.2</span>
         </div>
         <p>Strukturert egenskapsvisning for Trimble Connect 3D</p>
       </div>
@@ -118,9 +118,20 @@
                 <option value="3">3 desimaler</option>
               </select>
             </label>
+            <label>
+              <span>Avstand fra objekt</span>
+              <select id="stampOffset">
+                <option value="auto">Automatisk</option>
+                <option value="0.5">0,5 meter</option>
+                <option value="1">1 meter</option>
+                <option value="2">2 meter</option>
+                <option value="5">5 meter</option>
+                <option value="10">10 meter</option>
+              </select>
+            </label>
           </div>
 
-          <p class="stamp-help">Stemplene plasseres ved sentrum av hvert valgt objekt. De kan fjernes igjen i samme visningsøkt.</p>
+          <p class="stamp-help">Stempelet forankres på objektet og teksten plasseres utenfor geometrien med en synlig lederlinje. Velg større avstand dersom objektet er stort.</p>
 
           <div class="button-row">
             <button id="createStampsButton" class="primary-button wide-button" type="button" disabled>Plasser 3D-stempel på valgte objekter</button>
@@ -142,6 +153,6 @@
   </div>
 
   <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
-  <script src="./app.js"></script>
+  <script src="./app.js?v=1.2"></script>
 </body>
 </html>

@@ -12,7 +12,10 @@ En lettvekts 3D-extension som viser egenskaper strukturert etter valgt Property 
 - Kopiering av aktivt PSet til utklippstavlen.
 - CSV-eksport med semikolonseparator og UTF-8 BOM (Excel-vennlig i norsk oppsett).
 - 3D-stempel inspirert av vedlagt referansebilde: velg egenskapsrader, prefiks og suffiks, med live forhåndsvisning.
-- Oppretter et tekstmarkup ved sentrum av hvert valgt objekt via `viewer.getObjectBoundingBoxes()` og `markup.addTextMarkup()`.
+- Oppretter et tekstmarkup for hvert valgt objekt via `viewer.getObjectBoundingBoxes()` og `markup.addTextMarkup()`.
+- Forankrer stempelet over objektets overside langs Trimble-viewerens Y-akse og plasserer teksten utenfor geometrien med en synlig lederlinje.
+- Beholder `modelId` og `objectId` i begge markup-punktene. For lange objekter legges stempelet ved punktet på bounding box-en som er nærmest kameraet, slik at teksten ikke havner utenfor utsnittet.
+- Automatisk eller manuelt valg av avstand fra objektet.
 - Valgfri stempelfarge og tallavrunding.
 - Fjerner bare stemplene som extensionen selv har opprettet i gjeldende visningsøkt.
 - Kortoppsett lagres i `localStorage` per PSet.
@@ -50,10 +53,10 @@ Extensionen bruker ikke OAuth eller Property Set REST API. Den leser modellobjek
 1. Velg ett eller flere objekter i Trimble Connect 3D.
 2. Velg PSet og åpne fanen **3D-stempel**.
 3. Velg egenskapsrader og legg eventuelt inn prefiks og suffiks.
-4. Velg farge og eventuell tallavrunding.
+4. Velg farge, eventuell tallavrunding og avstand fra objektet.
 5. Klikk **Plasser 3D-stempel på valgte objekter**.
 
-Stempelteksten bygges separat for hvert objekt, slik at hvert objekt får sine egne egenskapsverdier. Plasseringen beregnes fra midtpunktet i objektets bounding box. Workspace API bruker millimeter for markup-punkter, derfor konverteres modellkoordinatene med faktor 1000 i samme mønster som `LetsConstructIT/Productivity-Tools`.
+Stempelteksten bygges separat for hvert objekt, slik at hvert objekt får sine egne egenskapsverdier. Forankringspunktet beregnes fra toppen av objektets bounding box på Y-aksen, mens tekstpunktet forskyves videre oppover. Begge punktene inneholder objektets `modelId` og `objectId`. Dette hindrer at teksten havner inne i objektet eller at markuplinjen får null lengde. For lange objekter brukes kameraets posisjon til å velge et synlig punkt på bounding box-en. Workspace API bruker millimeter for markup-punkter, derfor konverteres modellkoordinatene med faktor 1000.
 
 ## Begrensninger
 
