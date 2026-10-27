@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const MAX_SELECTED_OBJECTS = 250;
+  const MAX_SELECTED_OBJECTS = 1;
   const PROPERTY_BATCH_SIZE = 80;
   const MARKUP_BATCH_SIZE = 100;
   const STORAGE_PREFIX = 'tc-pset-viewer:v1:';
@@ -14,7 +14,10 @@
     propertyRows: [],
     activeTab: 'table',
     refreshTimer: null,
-    isRefreshing: false,
+    selectionRevision: 0,
+    lastSelectionKeys: new Set(),
+    lastPicked: null,
+    activeObjectKey: '',
     isCreatingStamps: false,
     createdMarkupIds: [],
     surfacePicks: new Map(),
@@ -90,8 +93,19 @@
   }
 
   function handleWorkspaceEvent(event, data) {
-    if (event === 'viewer.onPicked') captureSurfacePick(data);
-    if (event === 'viewer.onSelectionChanged' || event === 'viewer.onModelStateChanged') {
+    if (event === 'viewer.onPicked') {
+      captureSurfacePick(data);
+      const detail = Array.isArray(data?.data) ? data.data[0] : (data?.data ?? data);
+      const modelId = detail?.modelId ?? detail?.modelID;
+      const runtimeId = detail?.objectRuntimeId ?? detail?.runtimeId ?? detail?.objectId;
+      if (modelId && Number.isFinite(Number(runtimeId))) {
+        state.lastPicked = { modelId, runtimeId: Number(runtimeId) };
+      }
+    }
+    if (event === 'viewer.onSelectionChanged') {
+      if (data?.origin?.isSelf) return;
+      scheduleRefresh(data?.data);
+    } else if (event === 'viewer.onModelStateChanged') {
       scheduleRefresh();
     }
   }
@@ -133,72 +147,104 @@
     return { x: vector.x / length, y: vector.y / length, z: vector.z / length };
   }
 
-  function scheduleRefresh() {
+  // Each external selection change invalidates older asynchronous property responses.
+  function scheduleRefresh(eventSelection) {
     clearTimeout(state.refreshTimer);
-    state.refreshTimer = setTimeout(() => refreshSelection(), 120);
+    const revision = ++state.selectionRevision;
+    state.objects = [];
+    state.psets = [];
+    state.propertyRows = [];
+    state.activePset = '';
+    state.surfacePicks.clear();
+    renderAll();
+    state.refreshTimer = setTimeout(() => refreshSelection(false, revision, eventSelection), 90);
   }
 
-  async function refreshSelection(forceMessage = false) {
-    if (!state.api?.viewer || state.isRefreshing) return;
-    state.isRefreshing = true;
+  function objectKey(modelId, runtimeId) {
+    return String(modelId) + ':' + String(runtimeId);
+  }
+
+  function resolveSingleSelection(blocks) {
+    const flattened = blocks.flatMap(block =>
+      block.ids.map(runtimeId => ({ modelId: block.modelId, runtimeId }))
+    );
+    const currentKeys = new Set(flattened.map(item => objectKey(item.modelId, item.runtimeId)));
+    const newlyAdded = flattened.filter(item => !state.lastSelectionKeys.has(objectKey(item.modelId, item.runtimeId)));
+    state.lastSelectionKeys = currentKeys;
+    if (!flattened.length) return null;
+    if (flattened.length === 1) return flattened[0];
+
+    // New object beats objects retained in the viewer's previous selection.
+    // A valid viewer pick disambiguates coincident objects when available.
+    const picked = state.lastPicked && flattened.find(item =>
+      objectKey(item.modelId, item.runtimeId) === objectKey(state.lastPicked.modelId, state.lastPicked.runtimeId)
+    );
+    return (picked && newlyAdded.some(item =>
+      objectKey(item.modelId, item.runtimeId) === objectKey(picked.modelId, picked.runtimeId)
+    )) ? picked : (newlyAdded.at(-1) || picked || flattened.at(-1));
+  }
+
+  async function refreshSelection(forceMessage = false, revision = ++state.selectionRevision, eventSelection = null) {
+    if (!state.api?.viewer) return;
     el.refreshButton.disabled = true;
-
     try {
-      const selection = await state.api.viewer.getSelection();
-      const selectedBlocks = normalizeSelection(selection);
-      const totalRequested = selectedBlocks.reduce((sum, b) => sum + b.ids.length, 0);
+      const selection = Array.isArray(eventSelection) ? eventSelection : await state.api.viewer.getSelection();
+      if (revision !== state.selectionRevision) return;
+      const chosen = resolveSingleSelection(normalizeSelection(selection));
 
-      if (!totalRequested) {
+      if (!chosen) {
+        state.activeObjectKey = '';
+        state.lastPicked = null;
         state.objects = [];
         state.psets = [];
         state.activePset = '';
         state.propertyRows = [];
+        state.surfacePicks.clear();
         renderAll();
         if (forceMessage) showMessage('Ingen objekter er valgt i 3D-visningen.', 'info');
         return;
       }
 
-      const limited = limitSelection(selectedBlocks, MAX_SELECTED_OBJECTS);
-      const loaded = [];
-
-      for (const block of limited.blocks) {
-        for (let i = 0; i < block.ids.length; i += PROPERTY_BATCH_SIZE) {
-          const ids = block.ids.slice(i, i + PROPERTY_BATCH_SIZE);
-          try {
-            const props = await state.api.viewer.getObjectProperties(block.modelId, ids);
-            for (let j = 0; j < ids.length; j++) {
-              loaded.push({
-                modelId: block.modelId,
-                runtimeId: ids[j],
-                data: props?.[j] || { id: ids[j], properties: [] },
-              });
-            }
-          } catch (error) {
-            console.warn('getObjectProperties feilet for en batch', error);
-            for (const id of ids) {
-              loaded.push({ modelId: block.modelId, runtimeId: id, data: { id, properties: [] } });
-            }
-          }
-        }
+      const key = objectKey(chosen.modelId, chosen.runtimeId);
+      if (key !== state.activeObjectKey) {
+        state.activeObjectKey = key;
+        state.objects = [];
+        state.psets = [];
+        state.activePset = '';
+        state.propertyRows = [];
+        state.surfacePicks.clear();
+        renderAll();
       }
 
-      state.objects = loaded;
-      state.psets = collectPsets(loaded);
+      // "set" removes the stale selection in Trimble Connect itself.
+      const selectedCount = normalizeSelection(selection).reduce((sum, item) => sum + item.ids.length, 0);
+      if (selectedCount !== 1) {
+        await state.api.viewer.setSelection({
+          modelObjectIds: [{ modelId: chosen.modelId, objectRuntimeIds: [chosen.runtimeId] }]
+        }, 'set');
+        if (revision !== state.selectionRevision) return;
+        state.lastSelectionKeys = new Set([key]);
+      }
+
+      const properties = await state.api.viewer.getObjectProperties(chosen.modelId, [chosen.runtimeId]);
+      if (revision !== state.selectionRevision) return;
+      state.objects = [{
+        modelId: chosen.modelId,
+        runtimeId: chosen.runtimeId,
+        data: properties?.[0] || { id: chosen.runtimeId, properties: [] }
+      }];
+      state.psets = collectPsets(state.objects);
       chooseActivePset();
       loadCardRows();
       renderAll();
-
-      if (limited.truncated) {
-        showMessage(`Utvalget inneholder ${totalRequested} objekter. De første ${MAX_SELECTED_OBJECTS} er lastet for å holde visningen rask.`, 'info');
-      } else if (forceMessage) {
-        showMessage(`Oppdatert fra ${loaded.length} valgt${loaded.length === 1 ? '' : 'e'} objekt${loaded.length === 1 ? '' : 'er'}.`, 'success');
-      }
+      if (forceMessage) showMessage('Oppdatert fra ett valgt objekt.', 'success');
     } catch (error) {
-      console.error(error);
-      showMessage('Kunne ikke lese utvalget eller egenskapene fra Trimble Connect.', 'error');
+      if (revision === state.selectionRevision) {
+        console.error(error);
+        showMessage('Kunne ikke lese valgt objekt fra Trimble Connect.', 'error');
+      }
     } finally {
-      state.isRefreshing = false;
-      el.refreshButton.disabled = false;
+      if (revision === state.selectionRevision) el.refreshButton.disabled = false;
     }
   }
 
